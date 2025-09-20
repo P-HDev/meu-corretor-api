@@ -11,8 +11,18 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using Microsoft.OpenApi.Models;
+using Microsoft.AspNetCore.HttpOverrides;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Config Forwarded Headers (Azure App Service já envia X-Forwarded-Proto)
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    // Limpa listas para aceitar proxies conhecidos do Azure
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
+});
 
 builder.Services.AddDbContext<ContextoDb>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
@@ -95,13 +105,44 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
+// Aplica migrations pendentes automaticamente (evita rodar manualmente no deploy)
+using (var scope = app.Services.CreateScope())
+{
+    try
+    {
+        var db = scope.ServiceProvider.GetRequiredService<ContextoDb>();
+        db.Database.Migrate();
+    }
+    catch (Exception ex)
+    {
+        // Log simples em caso de falha (poderia integrar com logger)
+        Console.WriteLine($"Falha ao aplicar migrations: {ex.Message}");
+        // Prossegue sem derrubar o app; ajuste conforme necessidade
+    }
+}
+
+// Usa forwarded headers antes de redirecionamentos / auth
+app.UseForwardedHeaders();
+
+if (!app.Environment.IsDevelopment())
+{
+    // HSTS apenas em produção
+    app.UseHsts();
+}
+
 app.UseStaticFiles();
 app.UseCors("Frontend");
 
-if (app.Environment.IsDevelopment())
+// Swagger em dev ou se habilitado explicitamente em produção
+var enableSwaggerInProd = builder.Configuration.GetValue<bool>("Swagger:EnableInProduction");
+if (app.Environment.IsDevelopment() || enableSwaggerInProd)
 {
     app.UseSwagger();
-    app.UseSwaggerUI();
+    app.UseSwaggerUI(c =>
+    {
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "MeuCorretorApi v1");
+        c.RoutePrefix = "swagger"; // /swagger
+    });
 }
 
 app.UseHttpsRedirection();
