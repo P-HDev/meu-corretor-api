@@ -1,0 +1,76 @@
+# --- .NET ---
+bin/
+obj/
+**/bin/
+**/obj/
+
+# User secrets / config
+*.user
+*.suo
+*.userprefs
+
+# Build artifacts
+*.log
+*.vspscc
+
+# Rider / JetBrains
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# VS Code
+.vscode/
+
+# NuGet
+*.nupkg
+# Packages cache (keep if you prefer caching outside repo)
+#packages/
+
+# Coverage / Reports
+coverage/
+*.coverage
+*.coveragexml
+TestResult*/
+
+# Dumps / temp
+*.dump
+*.dmp
+*.tmp
+*.temp
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# wwwroot generated (keep images, ignore temp if needed)
+# Adjust if you want commit of images
+# MeuCorretorApi/wwwroot/imagens/*
+# !MeuCorretorApi/wwwroot/imagens/.gitkeep
+
+# Node (if front assets appear later)
+node_modules/
+
+# Logs
+logs/
+*.log
+
+# EF Core design-time cache
+**/Migrations/obj/
+
+# JetBrains Rider cache
+.idea/.idea_modules/
+.idea/modules.xml
+.idea/workspace.xml
+.idea/tasks.xml
+.idea/usage.statistics.xml
+.idea/dictionaries
+.idea/httpRequests
+.idea/shelf
+
+# Crash logs
+hs_err_pid*
+
+# Secrets placeholder
+secrets.json
+
