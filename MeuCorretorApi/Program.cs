@@ -35,8 +35,10 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddSingleton<IImageStorage, LocalImageStorage>();
 builder.Services.AddHttpContextAccessor();
 
-var allowedOrigins = builder.Configuration.GetSection("Cors:Origins").Get<string[]>()
-                      ?? new[] { "http://localhost:4200" };
+var allowedOrigins = new[] {
+    "http://localhost:4200",
+    "https://salmon-wave-0a229740f.1.azurestaticapps.net"
+};
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("Frontend", policy =>
@@ -106,6 +108,12 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
+app.UseForwardedHeaders();
+app.UseCors("Frontend");
+app.UseAuthentication();
+app.UseAuthorization();
+app.MapControllers();
+
 // Aplica migrations apenas se configurado (evita lógica complexa de baseline)
 using (var scope = app.Services.CreateScope())
 {
@@ -154,7 +162,4 @@ if (app.Environment.IsDevelopment() || enableSwaggerInProd)
 }
 
 app.UseHttpsRedirection();
-app.UseAuthentication();
-app.UseAuthorization();
-app.MapControllers();
 app.Run();
