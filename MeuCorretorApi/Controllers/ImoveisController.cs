@@ -37,11 +37,11 @@ namespace MeuCorretorApi.Controllers
         /// <summary>
         /// Obtém um imóvel pelo identificador interno (agora público/anonimo).
         /// </summary>
-        [HttpGet("{id:int}")]
+        [HttpGet("{id:guid}")]
         [AllowAnonymous]
         [ProducesResponseType(typeof(ImovelDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public async Task<ActionResult<ImovelDto>> GetById(int id)
+        public async Task<ActionResult<ImovelDto>> GetById(Guid id)
         {
             var imovel = await _imovelService.GetByIdAsync(id);
             if (imovel == null)
@@ -97,32 +97,21 @@ namespace MeuCorretorApi.Controllers
         /// <summary>
         /// Atualiza um imóvel existente substituindo seus dados e URLs das imagens.
         /// </summary>
-        [HttpPut("{id:int}")]
+        [HttpPut("{id:guid}")]
         [Authorize]
-        [ProducesResponseType(StatusCodes.Status204NoContent)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> Update(int id, [FromBody] UpdateImovelDto updateImovelDto)
+        public async Task<IActionResult> Update(Guid id, [FromBody] UpdateImovelDto dto)
         {
-            var existing = await _imovelService.GetByIdAsync(id);
-            if (existing == null)
-                return NotFound();
-
-            await _imovelService.UpdateAsync(id, updateImovelDto);
+            await _imovelService.UpdateAsync(id, dto);
             return NoContent();
         }
 
         /// <summary>
         /// Remove um imóvel.
         /// </summary>
-        [HttpDelete("{id:int}")]
+        [HttpDelete("{id:guid}")]
         [Authorize]
-        [ProducesResponseType(StatusCodes.Status204NoContent)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> Delete(int id)
+        public async Task<IActionResult> Delete(Guid id)
         {
-            var existing = await _imovelService.GetByIdAsync(id);
-            if (existing == null)
-                return NotFound();
 
             await _imovelService.DeleteAsync(id);
             return NoContent();

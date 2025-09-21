@@ -8,11 +8,11 @@ namespace Service.Interfaces
     public interface IImovelService
     {
         Task<IEnumerable<ImovelDto>> GetAllAsync();
-        Task<ImovelDto?> GetByIdAsync(int id);
+        Task<ImovelDto?> GetByIdAsync(Guid id);
         Task<ImovelDto?> GetByPublicIdAsync(string publicId);
         Task<ImovelDto> CreateAsync(CreateImovelDto createImovelDto);
         Task<ImovelDto> CreateWithUploadAsync(CreateImovelUploadDto createImovelUploadDto);
-        Task UpdateAsync(int id, UpdateImovelDto updateImovelDto);
-        Task DeleteAsync(int id);
+        Task UpdateAsync(Guid id, UpdateImovelDto updateImovelDto);
+        Task DeleteAsync(Guid id);
     }
 }

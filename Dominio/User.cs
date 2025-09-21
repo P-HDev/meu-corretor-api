@@ -4,7 +4,7 @@ namespace Dominio
 {
     public class User
     {
-        public int Id { get; private set; }
+        public Guid Id { get; private set; }
         public string Nome { get; private set; } = string.Empty;
         public string Email { get; private set; } = string.Empty;
         public string Telefone { get; private set; } = string.Empty; // formato normalizado: +<pais><ddd><numero>
@@ -15,6 +15,7 @@ namespace Dominio
 
         private User(string nome, string email, string telefone)
         {
+            Id = Guid.NewGuid();
             SetNome(nome);
             SetEmail(email);
             SetTelefone(telefone);
@@ -62,4 +63,3 @@ namespace Dominio
         }
     }
 }
-

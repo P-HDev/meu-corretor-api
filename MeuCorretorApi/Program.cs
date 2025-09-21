@@ -12,6 +12,7 @@ using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using Microsoft.OpenApi.Models;
 using Microsoft.AspNetCore.HttpOverrides;
+using Npgsql;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -105,19 +106,26 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
-// Aplica migrations pendentes automaticamente (evita rodar manualmente no deploy)
+// Aplica migrations apenas se configurado (evita lógica complexa de baseline)
 using (var scope = app.Services.CreateScope())
 {
-    try
+    var autoMigrate = builder.Configuration.GetValue<bool>("AutoMigrate");
+    if (autoMigrate)
     {
-        var db = scope.ServiceProvider.GetRequiredService<ContextoDb>();
-        db.Database.Migrate();
+        try
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ContextoDb>();
+            db.Database.Migrate();
+            Console.WriteLine("[Migrations] Banco atualizado.");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[Migrations][ERRO] Falha ao aplicar migrations: {ex.Message}");
+        }
     }
-    catch (Exception ex)
+    else
     {
-        // Log simples em caso de falha (poderia integrar com logger)
-        Console.WriteLine($"Falha ao aplicar migrations: {ex.Message}");
-        // Prossegue sem derrubar o app; ajuste conforme necessidade
+        Console.WriteLine("[Migrations] AutoMigrate desabilitado (defina AutoMigrate=true em config para habilitar).");
     }
 }
 

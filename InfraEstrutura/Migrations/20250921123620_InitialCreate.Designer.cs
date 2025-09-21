@@ -12,8 +12,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace InfraEstrutura.Migrations
 {
     [DbContext(typeof(ContextoDb))]
-    [Migration("20250919175402_add_users")]
-    partial class add_users
+    [Migration("20250921123620_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -27,14 +27,12 @@ namespace InfraEstrutura.Migrations
 
             modelBuilder.Entity("Dominio.Imagem", b =>
                 {
-                    b.Property<int>("Id")
+                    b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
+                        .HasColumnType("uuid");
 
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("ImovelId")
-                        .HasColumnType("integer");
+                    b.Property<Guid>("ImovelId")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("Url")
                         .IsRequired()
@@ -49,17 +47,20 @@ namespace InfraEstrutura.Migrations
 
             modelBuilder.Entity("Dominio.Imovel", b =>
                 {
-                    b.Property<int>("Id")
+                    b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+                        .HasColumnType("uuid");
 
                     b.Property<int>("Area")
                         .HasColumnType("integer");
 
                     b.Property<int>("Banheiros")
                         .HasColumnType("integer");
+
+                    b.Property<string>("CorretorTelefone")
+                        .IsRequired()
+                        .HasMaxLength(25)
+                        .HasColumnType("character varying(25)");
 
                     b.Property<string>("Descricao")
                         .IsRequired()
@@ -71,6 +72,10 @@ namespace InfraEstrutura.Migrations
 
                     b.Property<decimal>("Preco")
                         .HasColumnType("numeric");
+
+                    b.Property<string>("PublicId")
+                        .IsRequired()
+                        .HasColumnType("text");
 
                     b.Property<int>("Quartos")
                         .HasColumnType("integer");
@@ -86,21 +91,27 @@ namespace InfraEstrutura.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uuid");
+
                     b.Property<int>("Vagas")
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("PublicId")
+                        .IsUnique();
+
+                    b.HasIndex("UserId");
 
                     b.ToTable("Imoveis");
                 });
 
             modelBuilder.Entity("Dominio.User", b =>
                 {
-                    b.Property<int>("Id")
+                    b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+                        .HasColumnType("uuid");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -141,6 +152,14 @@ namespace InfraEstrutura.Migrations
                         .IsRequired();
 
                     b.Navigation("Imovel");
+                });
+
+            modelBuilder.Entity("Dominio.Imovel", b =>
+                {
+                    b.HasOne("Dominio.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.SetNull);
                 });
 
             modelBuilder.Entity("Dominio.Imovel", b =>

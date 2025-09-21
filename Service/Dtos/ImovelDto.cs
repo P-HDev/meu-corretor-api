@@ -4,7 +4,7 @@ namespace Service.Dtos
 {
     public class ImovelDto
     {
-        public int Id { get; set; }
+        public Guid Id { get; set; }
         public string PublicId { get; set; } = string.Empty;
         public string ShareUrl { get; set; } = string.Empty;
         public string Titulo { get; set; } = string.Empty;
@@ -18,13 +18,13 @@ namespace Service.Dtos
         public int Suites { get; set; }
         public int Vagas { get; set; }
         public string CorretorTelefone { get; set; } = string.Empty;
-        public ICollection<ImagemDto> Imagens { get; set; } = new List<ImagemDto>();
-        public int? UserId { get; set; }
+        public List<ImagemDto> Imagens { get; set; } = new();
+        public Guid? UserId { get; set; }
     }
 
     public class ImagemDto
     {
-        public int Id { get; set; }
+        public Guid Id { get; set; }
         public string Url { get; set; } = string.Empty;
     }
 }

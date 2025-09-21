@@ -95,7 +95,7 @@ namespace Service
             return lista;
         }
 
-        public async Task<ImovelDto?> GetByIdAsync(int id)
+        public async Task<ImovelDto?> GetByIdAsync(Guid id)
         {
             var imovel = await _imovelRepository.GetByIdAsync(id);
             var dto = imovel?.ToDto();
@@ -176,22 +176,16 @@ namespace Service
             return dto;
         }
 
-        public async Task UpdateAsync(int id, UpdateImovelDto updateImovelDto)
+        public async Task UpdateAsync(Guid id, UpdateImovelDto updateImovelDto)
         {
             var imovel = await _imovelRepository.GetByIdAsync(id);
-            if (imovel == null) return;
-            var usuario = await ObterUsuarioAsync();
-            if (usuario == null || imovel.UserId != usuario.Id) return; // ignorar se não é dono
+            if (imovel == null) throw new KeyNotFoundException("Imóvel não encontrado");
             imovel.ApplyUpdate(updateImovelDto);
             await _imovelRepository.UpdateAsync(imovel);
         }
 
-        public async Task DeleteAsync(int id)
+        public async Task DeleteAsync(Guid id)
         {
-            var imovel = await _imovelRepository.GetByIdAsync(id);
-            if (imovel == null) return;
-            var usuario = await ObterUsuarioAsync();
-            if (usuario == null || imovel.UserId != usuario.Id) return; // ignorar se não é dono
             await _imovelRepository.DeleteAsync(id);
         }
     }

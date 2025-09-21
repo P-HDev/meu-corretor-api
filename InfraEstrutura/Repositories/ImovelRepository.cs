@@ -22,7 +22,7 @@ namespace InfraEstrutura.Repositories
             return await _context.Imoveis.Include(i => i.Imagens).ToListAsync();
         }
 
-        public async Task<Imovel?> GetByIdAsync(int id)
+        public async Task<Imovel?> GetByIdAsync(Guid id)
         {
             return await _context.Imoveis.Include(i => i.Imagens).FirstOrDefaultAsync(i => i.Id == id);
         }
@@ -45,7 +45,7 @@ namespace InfraEstrutura.Repositories
             await _context.SaveChangesAsync();
         }
 
-        public async Task DeleteAsync(int id)
+        public async Task DeleteAsync(Guid id)
         {
             var imovel = await _context.Imoveis.FindAsync(id);
             if (imovel != null)
@@ -55,10 +55,10 @@ namespace InfraEstrutura.Repositories
             }
         }
 
-        public async Task<IEnumerable<Imovel>> GetAllByUserAsync(int userId)
+        public async Task<IEnumerable<Imovel>> GetAllByUserAsync(Guid userId)
         {
             return await _context.Imoveis.Include(i => i.Imagens)
-                .Where(i => i.UserId == userId)
+                .Where(i => i.UserId.HasValue && i.UserId.Value == userId)
                 .ToListAsync();
         }
     }

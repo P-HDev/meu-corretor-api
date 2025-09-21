@@ -8,7 +8,7 @@ namespace Dominio
     {
         private readonly List<Imagem> _imagens = new();
 
-        public int Id { get; private set; }
+        public Guid Id { get; private set; }
         public string PublicId { get; private set; } = string.Empty; // slug público para compartilhamento
         public string Titulo { get; private set; } = string.Empty;
         public string Endereco { get; private set; } = string.Empty;
@@ -21,7 +21,7 @@ namespace Dominio
         public int Suites { get; private set; }
         public int Vagas { get; private set; }
         public string CorretorTelefone { get; private set; } = string.Empty; // telefone do corretor dono do anúncio
-        public int? UserId { get; private set; } // usuário dono
+        public Guid? UserId { get; private set; } // usuário dono
         public IReadOnlyCollection<Imagem> Imagens => _imagens.AsReadOnly();
 
         protected Imovel() { }
@@ -29,6 +29,7 @@ namespace Dominio
         internal Imovel(string titulo, string endereco, string descricao, string status, decimal preco,
             int area, int quartos, int banheiros, int suites, int vagas, string corretorTelefone)
         {
+            Id = Guid.NewGuid();
             PublicId = Guid.NewGuid().ToString("N");
             DefinirDadosBasicos(titulo, endereco, descricao, status, preco, area, quartos, banheiros, suites, vagas);
             DefinirCorretorTelefone(corretorTelefone);
@@ -59,9 +60,9 @@ namespace Dominio
                 _imagens.Add(new Imagem { Url = u });
         }
 
-        public void DefinirOwner(int userId)
+        public void DefinirOwner(Guid userId)
         {
-            if (userId > 0) UserId = userId;
+            if (userId != Guid.Empty) UserId = userId;
         }
 
         private void DefinirDadosBasicos(string titulo, string endereco, string descricao, string status, decimal preco,
