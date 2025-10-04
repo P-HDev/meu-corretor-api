@@ -1,9 +1,5 @@
-using System.Collections.Generic;
-using System.Linq;
-using Dominio;
+namespace Dominio.Builders;
 
-namespace Dominio.Builders
-{
     public class ImovelBuilder
     {
         private string _titulo = string.Empty;
@@ -42,4 +38,3 @@ namespace Dominio.Builders
             return imovel;
         }
     }
-}

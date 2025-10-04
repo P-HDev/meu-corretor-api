@@ -5,22 +5,17 @@ using InfraEstrutura.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Service;
 using InfraEstrutura.Storage;
-using System;
-using System.IO;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using Microsoft.OpenApi.Models;
 using Microsoft.AspNetCore.HttpOverrides;
-using Npgsql;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Config Forwarded Headers (Azure App Service já envia X-Forwarded-Proto)
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
     options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
-    // Limpa listas para aceitar proxies conhecidos do Azure
     options.KnownNetworks.Clear();
     options.KnownProxies.Clear();
 });
@@ -31,7 +26,7 @@ builder.Services.AddDbContext<ContextoDb>(options =>
 builder.Services.AddScoped<IImovelRepository, ImovelRepository>();
 builder.Services.AddScoped<IImovelService, ImovelService>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
-builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IAutenticacaoService, AutenticacaoService>();
 builder.Services.AddSingleton<IImageStorage, LocalImageStorage>();
 builder.Services.AddHttpContextAccessor();
 
@@ -51,7 +46,6 @@ builder.Services.AddCors(options =>
 
 builder.Services.AddControllers();
 
-// JWT Auth
 var jwtKey = builder.Configuration["Jwt:Key"] ?? throw new InvalidOperationException("Jwt:Key não configurado");
 var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "MeuCorretorApi";
 var jwtAudience = builder.Configuration["Jwt:Audience"] ?? jwtIssuer;
@@ -63,7 +57,7 @@ builder.Services.AddAuthentication(o =>
     o.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
 }).AddJwtBearer(o =>
 {
-    o.RequireHttpsMetadata = false; // ajustar para true em prod https
+    o.RequireHttpsMetadata = false;
     o.SaveToken = true;
     o.TokenValidationParameters = new TokenValidationParameters
     {
@@ -113,8 +107,8 @@ app.UseCors("Frontend");
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+app.UseStaticFiles();
 
-// Aplica migrations apenas se configurado (evita lógica complexa de baseline)
 using (var scope = app.Services.CreateScope())
 {
     var autoMigrate = builder.Configuration.GetValue<bool>("AutoMigrate");
@@ -137,19 +131,13 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
-// Usa forwarded headers antes de redirecionamentos / auth
 app.UseForwardedHeaders();
 
 if (!app.Environment.IsDevelopment())
 {
-    // HSTS apenas em produção
     app.UseHsts();
 }
 
-app.UseStaticFiles();
-app.UseCors("Frontend");
-
-// Swagger em dev ou se habilitado explicitamente em produção
 var enableSwaggerInProd = builder.Configuration.GetValue<bool>("Swagger:EnableInProduction");
 if (app.Environment.IsDevelopment() || enableSwaggerInProd)
 {
@@ -157,7 +145,7 @@ if (app.Environment.IsDevelopment() || enableSwaggerInProd)
     app.UseSwaggerUI(c =>
     {
         c.SwaggerEndpoint("/swagger/v1/swagger.json", "MeuCorretorApi v1");
-        c.RoutePrefix = "swagger"; // /swagger
+        c.RoutePrefix = "swagger";
     });
 }
 

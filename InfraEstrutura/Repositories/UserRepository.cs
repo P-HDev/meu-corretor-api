@@ -1,4 +1,3 @@
-using System.Threading.Tasks;
 using Dominio;
 using Dominio.Interfaces;
 using InfraEstrutura.ContextoBancoPsql;
@@ -22,4 +21,3 @@ namespace InfraEstrutura.Repositories
         }
     }
 }
-
