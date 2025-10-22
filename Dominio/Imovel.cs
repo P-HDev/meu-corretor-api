@@ -2,7 +2,7 @@ namespace Dominio;
 
 public class Imovel
 {
-    private readonly List<Imagem> _imagens = new();
+    private readonly List<string> _imagensUrls = new();
     public Guid Id { get; private set; }
     public string PublicId { get; private set; } = string.Empty;
     public string Titulo { get; private set; } = string.Empty;
@@ -17,7 +17,7 @@ public class Imovel
     public int Vagas { get; private set; }
     public string CorretorTelefone { get; private set; } = string.Empty;
     public Guid? UserId { get; private set; }
-    public IReadOnlyCollection<Imagem> Imagens => _imagens.AsReadOnly();
+    public IReadOnlyCollection<string> ImagensUrls => _imagensUrls.AsReadOnly();
 
     protected Imovel()
     {
@@ -43,23 +43,34 @@ public class Imovel
         CorretorTelefone = (telefone ?? string.Empty).Trim();
     }
 
-    public void AdicionarImagem(string url)
+    public void AdicionarImagemUrl(string url)
     {
         if (string.IsNullOrWhiteSpace(url)) return;
-        _imagens.Add(new Imagem { Url = url });
+        _imagensUrls.Add(url);
     }
 
-    public void SubstituirImagens(IEnumerable<string> urls)
+    public void RemoverImagemUrl(string url)
     {
-        _imagens.Clear();
-        if (urls == null) return;
-        foreach (var u in urls.Where(u => !string.IsNullOrWhiteSpace(u)))
-            _imagens.Add(new Imagem { Url = u });
+        _imagensUrls.Remove(url);
     }
 
-    public void DefinirOwner(Guid userId)
+    public void LimparImagens()
     {
-        if (userId != Guid.Empty) UserId = userId;
+        _imagensUrls.Clear();
+    }
+
+    public void DefinirImagens(IEnumerable<string> urls)
+    {
+        _imagensUrls.Clear();
+        foreach (var url in urls.Where(u => !string.IsNullOrWhiteSpace(u)))
+        {
+            _imagensUrls.Add(url);
+        }
+    }
+
+    public void DefinirUserId(Guid? userId)
+    {
+        UserId = userId;
     }
 
     private void DefinirDadosBasicos(string titulo, string endereco, string descricao, string status, decimal preco,

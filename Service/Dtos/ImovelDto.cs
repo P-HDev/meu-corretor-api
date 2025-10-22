@@ -16,6 +16,6 @@ public record ImovelDto
     public int Suites { get; init; }
     public int Vagas { get; init; }
     public string CorretorTelefone { get; init; } = string.Empty;
-    public List<ImagemDto> Imagens { get; init; } = new();
+    public List<string> ImagensUrls { get; init; } = new();
     public Guid? UserId { get; init; }
 }

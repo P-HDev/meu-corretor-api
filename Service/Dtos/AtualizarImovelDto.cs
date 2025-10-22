@@ -12,5 +12,5 @@ public record AtualizarImovelDto
     public int Banheiros { get; set; }
     public int Suites { get; set; }
     public int Vagas { get; set; }
-    public ICollection<AtualizarImagemDto> Imagens { get; set; } = new List<AtualizarImagemDto>();
+    public List<string> ImagensUrls { get; set; } = new();
 }

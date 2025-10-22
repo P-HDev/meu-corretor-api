@@ -18,5 +18,4 @@ public record CriarImovelDto
     public int Banheiros { get; init; }
     public int Suites { get; init; }
     public int Vagas { get; init; }
-    public ICollection<CriarImagemDto> Imagens { get; init; } = new List<CriarImagemDto>();
 }

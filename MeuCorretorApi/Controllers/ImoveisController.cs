@@ -9,7 +9,7 @@ namespace MeuCorretorApi.Controllers;
 [Route("api/[controller]")]
 public class ImoveisController(IImovelService imovelService) : ControllerBase
 {
-    private readonly IImovelService _imovelService;
+    private readonly IImovelService _imovelService = imovelService ?? throw new ArgumentNullException(nameof(imovelService));
 
     [HttpGet]
     [Authorize]

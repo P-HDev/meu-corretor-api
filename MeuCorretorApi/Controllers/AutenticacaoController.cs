@@ -16,7 +16,7 @@ public class AutenticacaoController(IAutenticacaoService autenticacaoService) : 
         if (!ModelState.IsValid) return ValidationProblem(ModelState);
         try
         {
-            var resp = await autenticacaoService.RegisterAsync(dto);
+            var resp = await autenticacaoService.RegistrarAsync(dto);
             return Ok(resp);
         }
         catch (InvalidOperationException ex)

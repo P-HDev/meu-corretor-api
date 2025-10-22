@@ -21,6 +21,15 @@ public class User
         SetTelefone(telefone);
     }
 
+    public User(string nome, string email, string passwordHash, string telefone)
+    {
+        Id = Guid.NewGuid();
+        SetNome(nome);
+        SetEmail(email);
+        SetPasswordHash(passwordHash);
+        SetTelefone(telefone);
+    }
+
     public static User Create(string nome, string email, string telefone)
         => new User(nome, email, telefone);
 

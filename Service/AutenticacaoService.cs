@@ -1,127 +1,92 @@
-using System.Security.Cryptography;
-using System.Text;
 using Dominio;
-using Dominio.Interfaces;
+using Service.Interfaces;
+using Service.Dtos;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
-using Service.Dtos;
-using Service.Interfaces;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using System.Text;
+using InfraEstrutura.ContextoBancoPsql;
+using Microsoft.EntityFrameworkCore;
 
 namespace Service;
 
-public class AutenticacaoService(
-    IUserRepository userRepository,
-    IConfiguration config) : IAutenticacaoService
+public class AutenticacaoService(ContextoDb context, IConfiguration configuration) : IAutenticacaoService
 {
-    private const int SaltSize = 16;
-    private const int KeySize = 32;
-    private const int Iterations = 100_000;
-
-    public async Task<RespostaAutenticacaoDto> RegisterAsync(RegistrarUsuarioDto dto)
-    {
-        var existing = await userRepository.GetByEmailAsync(dto.Email.Trim().ToLowerInvariant());
-        if (existing != null)
-            throw new InvalidOperationException("Email já registrado.");
-
-        var user = User.Create(dto.Nome, dto.Email, dto.Telefone);
-        var hash = HashPassword(dto.Senha);
-        user.SetPasswordHash(hash);
-        user = await userRepository.AddAsync(user);
-        return GerarResposta(user);
-    }
+    private readonly string _jwtKey = configuration["Jwt:Key"] ?? throw new InvalidOperationException("JWT Key não configurada");
+    private readonly string _jwtIssuer = configuration["Jwt:Issuer"] ?? "MeuCorretorApi";
+    private readonly string _jwtAudience = configuration["Jwt:Audience"] ?? "MeuCorretorApi";
+    private readonly int _expireMinutes = int.TryParse(configuration["Jwt:ExpireMinutes"], out var minutes) ? minutes : 60;
 
     public async Task<RespostaAutenticacaoDto> LoginAsync(LoginDto dto)
     {
-        var user = await userRepository.GetByEmailAsync(dto.Email.Trim().ToLowerInvariant());
-        if (user == null || !VerificarSenha(dto.Senha, user.PasswordHash))
-            throw new UnauthorizedAccessException("Credenciais inválidas");
-        return GerarResposta(user);
+        var usuario = await BuscarUsuarioPorEmailAsync(dto.Email);
+        if (usuario == null || !VerificarSenha(dto.Senha, usuario.PasswordHash))
+            throw new UnauthorizedAccessException("Email ou senha inválidos");
+
+        var token = GerarToken(usuario);
+        return CriarRespostaAutenticacao(token, usuario);
     }
 
-    private RespostaAutenticacaoDto GerarResposta(User user)
+    public async Task<RespostaAutenticacaoDto> RegistrarAsync(RegistrarUsuarioDto dto)
     {
-        var (token, expires) = GerarToken(user);
-        return new RespostaAutenticacaoDto
-        {
-            Token = token,
-            ExpiresAtUtc = expires,
-            User = new UsuarioDto
-            {
-                Id = user.Id,
-                Nome = user.Nome,
-                Email = user.Email,
-                Telefone = user.Telefone
-            }
-        };
+        await ValidarSeUsuarioJaExisteAsync(dto.Email);
+        
+        var usuario = CriarNovoUsuario(dto);
+        await SalvarUsuarioAsync(usuario);
+        
+        var token = GerarToken(usuario);
+        return CriarRespostaAutenticacao(token, usuario);
     }
 
-    private (string token, DateTime expires) GerarToken(User user)
+    private async Task<User?> BuscarUsuarioPorEmailAsync(string email) =>
+        await context.Users.FirstOrDefaultAsync(u => u.Email == email.ToLowerInvariant());
+
+    private static bool VerificarSenha(string senha, string senhaHash) =>
+        BCrypt.Net.BCrypt.Verify(senha, senhaHash);
+
+    private async Task ValidarSeUsuarioJaExisteAsync(string email)
     {
-        var key = config["Jwt:Key"] ?? throw new InvalidOperationException("Jwt:Key não configurado");
-        var issuer = config["Jwt:Issuer"] ?? "MeuCorretorApi";
-        var audience = config["Jwt:Audience"] ?? issuer;
-        var expireMinutes = int.TryParse(config["Jwt:ExpireMinutes"], out var m) ? m : 60;
-        var expires = DateTime.UtcNow.AddMinutes(expireMinutes);
+        var usuarioExistente = await BuscarUsuarioPorEmailAsync(email);
+        if (usuarioExistente != null)
+            throw new InvalidOperationException("Usuário já cadastrado com este email");
+    }
 
-        var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key));
-        var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
+    private static User CriarNovoUsuario(RegistrarUsuarioDto dto) =>
+        new(dto.Nome, dto.Email, CriptografarSenha(dto.Senha), dto.Telefone);
 
-        var claims = new List<Claim>
-        {
-            new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
-            new Claim(JwtRegisteredClaimNames.Email, user.Email),
-            new Claim("name", user.Nome)
-        };
+    private static string CriptografarSenha(string senha) =>
+        BCrypt.Net.BCrypt.HashPassword(senha);
+
+    private async Task SalvarUsuarioAsync(User usuario)
+    {
+        context.Users.Add(usuario);
+        await context.SaveChangesAsync();
+    }
+
+    private string GerarToken(User usuario)
+    {
+        var claims = CriarClaims(usuario);
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtKey));
+        var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
         var token = new JwtSecurityToken(
-            issuer,
-            audience,
-            claims,
-            notBefore: DateTime.UtcNow,
-            expires: expires,
-            signingCredentials: credentials
-        );
+            issuer: _jwtIssuer,
+            audience: _jwtAudience,
+            claims: claims,
+            expires: DateTime.UtcNow.AddMinutes(_expireMinutes),
+            signingCredentials: credentials);
 
-        var tokenString = new JwtSecurityTokenHandler().WriteToken(token);
-        return (tokenString, expires);
+        return new JwtSecurityTokenHandler().WriteToken(token);
     }
 
-    private static string HashPassword(string senha)
-    {
-        using var rng = RandomNumberGenerator.Create();
-        var salt = new byte[SaltSize];
-        rng.GetBytes(salt);
-        var hash = Rfc2898DeriveBytes.Pbkdf2(
-            Encoding.UTF8.GetBytes(senha),
-            salt,
-            Iterations,
-            HashAlgorithmName.SHA256,
-            KeySize);
-        return $"v1|{Iterations}|{Convert.ToBase64String(salt)}|{Convert.ToBase64String(hash)}";
-    }
+    private static Claim[] CriarClaims(User usuario) =>
+    [
+        new Claim(ClaimTypes.NameIdentifier, usuario.Id.ToString()),
+        new Claim(ClaimTypes.Name, usuario.Nome),
+        new Claim(ClaimTypes.Email, usuario.Email)
+    ];
 
-    private static bool VerificarSenha(string senha, string hashArmazenado)
-    {
-        try
-        {
-            var partes = hashArmazenado.Split('|');
-            if (partes.Length != 4 || partes[0] != "v1") return false;
-            var iterations = int.Parse(partes[1]);
-            var salt = Convert.FromBase64String(partes[2]);
-            var hash = Convert.FromBase64String(partes[3]);
-            var teste = Rfc2898DeriveBytes.Pbkdf2(
-                Encoding.UTF8.GetBytes(senha),
-                salt,
-                iterations,
-                HashAlgorithmName.SHA256,
-                hash.Length);
-            return CryptographicOperations.FixedTimeEquals(hash, teste);
-        }
-        catch
-        {
-            return false;
-        }
-    }
+    private static RespostaAutenticacaoDto CriarRespostaAutenticacao(string token, User usuario) =>
+        new(token, new UsuarioDto(usuario.Id, usuario.Nome, usuario.Email, usuario.Telefone));
 }

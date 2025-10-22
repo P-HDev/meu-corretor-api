@@ -22,11 +22,9 @@ public static class ImovelMap
         Vagas = entity.Vagas,
         CorretorTelefone = entity.CorretorTelefone,
         UserId = entity.UserId,
-        Imagens = entity.Imagens.Select(i => new ImagemDto(i.Id, i.Url)).ToList()
+        ImagensUrls = entity.ImagensUrls.ToList()
     };
 
-    public static IEnumerable<ImovelDto> ToDtoList(this IEnumerable<Imovel> entities) =>
-        entities.Select(e => e.ToDto());
 
     public static Imovel ToEntity(this CriarImovelDto dto)
     {
@@ -40,8 +38,7 @@ public static class ImovelMap
             .ComQuartos(dto.Quartos)
             .ComBanheiros(dto.Banheiros)
             .ComSuites(dto.Suites)
-            .ComVagas(dto.Vagas)
-            .AdicionarImagens(dto.Imagens.Select(i => i.Url));
+            .ComVagas(dto.Vagas);
         return builder.Build();
     }
 
@@ -49,6 +46,7 @@ public static class ImovelMap
     {
         entity.Atualizar(dto.Titulo, dto.Endereco, dto.Descricao, dto.Status, dto.Preco,
             dto.Area, dto.Quartos, dto.Banheiros, dto.Suites, dto.Vagas);
-        entity.SubstituirImagens(dto.Imagens.Select(i => i.Url));
+
+        entity.DefinirImagens(dto.ImagensUrls);
     }
 }
