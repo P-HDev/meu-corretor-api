@@ -1,88 +1,65 @@
-name: Build and Deploy API
+# Docs for the Azure Web Apps Deploy action: https://github.com/Azure/webapps-deploy
+# More GitHub Actions for Azure: https://github.com/Azure/actions
+
+name: Build and deploy ASP.Net Core app to Azure Web App - corretorapp-web-api
 
 on:
-  pull_request:
-    types: [closed]
-    branches: [master]
+  push:
+    branches:
+      - master
   workflow_dispatch:
 
-# Evita execuções duplicadas simultâneas na mesma ref
-concurrency:
-  group: corretorapi-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
-  build-and-deploy:
-    if: github.event_name == 'workflow_dispatch' || (github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'master' && github.event.pull_request.head.ref == 'develop')
+  build:
     runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+    permissions:
+      contents: read #This is required for actions/checkout
 
-      - name: Setup .NET
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET Core
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '9.0.x'
+          dotnet-version: '9.x'
 
-      - name: Restore
-        run: dotnet restore MeuCorretorApi.sln
+      - name: Build with dotnet
+        run: dotnet build --configuration Release
 
-      - name: Build
-        run: dotnet build MeuCorretorApi.sln --configuration Release --no-restore
+      - name: dotnet publish
+        run: dotnet publish -c Release -o ${{env.DOTNET_ROOT}}/myapp
 
-      - name: Publish
-        run: dotnet publish MeuCorretorApi/MeuCorretorApi.csproj -c Release -o publish --no-build
-
-      - name: Validar e classificar secrets
-        id: validate-secrets
-        run: |
-          hasPublishProfile="false"
-          hasSp="false"
-          if [ -n "${AZURE_WEBAPP_PUBLISH_PROFILE}" ]; then
-            hasPublishProfile="true"
-          fi
-          if [ -n "${AZURE_CREDENTIALS}" ]; then
-            hasSp="true"
-          fi
-          if [ -z "${AZURE_WEBAPP_NAME}" ]; then
-            echo 'ERRO: Secret AZURE_WEBAPP_NAME não configurado.'
-            exit 1
-          fi
-          if [ "$hasPublishProfile" = "false" ] && [ "$hasSp" = "false" ]; then
-            echo 'ERRO: Configure pelo menos AZURE_WEBAPP_PUBLISH_PROFILE ou AZURE_CREDENTIALS.'
-            exit 1
-          fi
-          echo "hasPublishProfile=$hasPublishProfile" >> $GITHUB_OUTPUT
-          echo "hasServicePrincipal=$hasSp" >> $GITHUB_OUTPUT
-        env:
-          AZURE_WEBAPP_PUBLISH_PROFILE: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-          AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
-          AZURE_WEBAPP_NAME: ${{ secrets.AZURE_WEBAPP_NAME }}
-
-      - name: Azure Login (Service Principal)
-        if: steps.validate-secrets.outputs.hasServicePrincipal == 'true' && steps.validate-secrets.outputs.hasPublishProfile == 'false'
-        uses: azure/login@v1
+      - name: Upload artifact for deployment job
+        uses: actions/upload-artifact@v4
         with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
+          name: .net-app
+          path: ${{env.DOTNET_ROOT}}/myapp
 
-      - name: Deploy via Publish Profile
-        if: steps.validate-secrets.outputs.hasPublishProfile == 'true'
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      id-token: write #This is required for requesting the JWT
+      contents: read #This is required for actions/checkout
+
+    steps:
+      - name: Download artifact from build job
+        uses: actions/download-artifact@v4
+        with:
+          name: .net-app
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_B2D7F3C15F454FD396FF5E321962179A }}
+          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_765B20E13A0E40028C6C25E91026CA1E }}
+          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_4B676AE05B4C406A94B741B801305093 }}
+
+      - name: Deploy to Azure Web App
+        id: deploy-to-webapp
         uses: azure/webapps-deploy@v3
         with:
-          app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
-          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-          package: publish
-
-      - name: Deploy via Service Principal (fallback)
-        if: steps.validate-secrets.outputs.hasPublishProfile == 'false' && steps.validate-secrets.outputs.hasServicePrincipal == 'true'
-        uses: azure/webapps-deploy@v3
-        with:
-          app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
-          package: publish
-
-      - name: Post Subscription Disabled Warning
-        if: failure()
-        run: |
-          echo 'Falha no deploy. Se código 409: assinatura Azure desabilitada ou sem permissão. Verifique billing e SP.'
+          app-name: 'corretorapp-web-api'
+          slot-name: 'Production'
+          package: .
+          
