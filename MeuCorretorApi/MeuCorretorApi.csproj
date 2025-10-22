@@ -22,4 +22,33 @@
       <ProjectReference Include="..\Service\Service.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+      <_ContentIncludedByDefault Remove="wwwroot\imagens\.gitkeep" />
+      <_ContentIncludedByDefault Remove="wwwroot\imagens\0751c3f155ef4c43be7a978128f9e505.jpg" />
+      <_ContentIncludedByDefault Remove="wwwroot\imagens\1a5ad00aab984d1e8beb20fb1f418ed1.jpg" />
+      <_ContentIncludedByDefault Remove="wwwroot\imagens\1af41ad6d94c42c584788a7bebed97f9.jpg" />
+      <_ContentIncludedByDefault Remove="wwwroot\imagens\23103efe92604f86a520ed8810a91db6.jpg" />
+      <_ContentIncludedByDefault Remove="wwwroot\imagens\24230c8a817c4a6bb6572b4b52b3b7bc.jpg" />
+      <_ContentIncludedByDefault Remove="wwwroot\imagens\38b0b213639942aa995baaea75e1f55b.jpg" />
+      <_ContentIncludedByDefault Remove="wwwroot\imagens\433ee185e13a482f9b94b7cceb4e9ba3.jpg" />
+      <_ContentIncludedByDefault Remove="wwwroot\imagens\68ecc3aed5e447deb5ccd7ebb522ffb0.jpg" />
+      <_ContentIncludedByDefault Remove="wwwroot\imagens\7c511b94c1c64df684963eb9e07322cd.jpg" />
+      <_ContentIncludedByDefault Remove="wwwroot\imagens\8a20caad63ab4c10a9c346ea998faeb3.jpg" />
+      <_ContentIncludedByDefault Remove="wwwroot\imagens\8bee4884ef104bd3af218c624e278997.jpg" />
+      <_ContentIncludedByDefault Remove="wwwroot\imagens\8ece67e909134b218a3dfa002e1d3717.jpg" />
+      <_ContentIncludedByDefault Remove="wwwroot\imagens\9f02765e52394378ab8d9c02ac649ba6.jpg" />
+      <_ContentIncludedByDefault Remove="wwwroot\imagens\a5b8c2c0825043c183aa063e37598dba.jpg" />
+      <_ContentIncludedByDefault Remove="wwwroot\imagens\a96280a152104a4194dcb81c77127e6e.jpg" />
+      <_ContentIncludedByDefault Remove="wwwroot\imagens\c1c485699a6646929a78b489eee3d20e.jpg" />
+      <_ContentIncludedByDefault Remove="wwwroot\imagens\ce2e84ed79d54b7e895930b5101437b1.jpg" />
+      <_ContentIncludedByDefault Remove="wwwroot\imagens\e07d22cd680c43a0a1a89d7f2219c2dc.jpg" />
+      <_ContentIncludedByDefault Remove="wwwroot\imagens\e4574a5251114c3982b0db57e79703bc.jpg" />
+      <_ContentIncludedByDefault Remove="wwwroot\imagens\f4de933fc1d243f8a772da1d22e9ddef.jpg" />
+      <_ContentIncludedByDefault Remove="wwwroot\imagens\fa595ce8ab914e03b77f938144104667.jpg" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Folder Include="wwwroot\" />
+    </ItemGroup>
+
 </Project>

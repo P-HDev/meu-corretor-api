@@ -1,21 +1,24 @@
+using System.ComponentModel.DataAnnotations;
+using Microsoft.AspNetCore.Http;
+
 namespace Service.Dtos;
 
-public record ImovelDto
+public record CriarImovelUploadDto
 {
-    public Guid Id { get; init; }
-    public string PublicId { get; init; } = string.Empty;
-    public string ShareUrl { get; init; } = string.Empty;
+    [Required]
     public string Titulo { get; init; } = string.Empty;
+    [Required]
     public string Endereco { get; init; } = string.Empty;
     public string Descricao { get; init; } = string.Empty;
+    [Required]
     public string Status { get; init; } = string.Empty;
+    [Required]
     public decimal Preco { get; init; }
     public int Area { get; init; }
     public int Quartos { get; init; }
     public int Banheiros { get; init; }
     public int Suites { get; init; }
     public int Vagas { get; init; }
-    public string CorretorTelefone { get; init; } = string.Empty;
-    public List<string> ImagensUrls { get; init; } = new();
-    public Guid? UserId { get; init; }
+
+    public List<IFormFile> Imagens { get; init; } = new();
 }

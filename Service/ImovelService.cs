@@ -2,191 +2,195 @@ using Dominio;
 using Dominio.Interfaces;
 using Service.Interfaces;
 using Service.Dtos;
-using System;
-using System.Threading.Tasks;
-using System.Collections.Generic;
-using Service.Mappings;
 using Dominio.Builders;
 using Microsoft.Extensions.Configuration;
 using Microsoft.AspNetCore.Http;
 using System.Security.Claims;
-using System.Linq;
+using Service.Mapeadores;
+using InfraEstrutura.ContextoBancoPsql;
+using Microsoft.EntityFrameworkCore;
 
-namespace Service
+namespace Service;
+
+public class ImovelService(
+    ContextoDb context,
+    IImageStorage imageStorage,
+    IConfiguration configuration,
+    IHttpContextAccessor httpContextAccessor) : IImovelService
 {
-    public class ImovelService : IImovelService
+    private readonly string _publicBaseUrl = configuration["PublicBaseUrl"]?.TrimEnd('/') ?? string.Empty;
+
+    public async Task<IEnumerable<ImovelDto>> GetAllAsync()
     {
-        private readonly IImovelRepository _imovelRepository;
-        private readonly IImageStorage _imageStorage;
-        private readonly string _publicBaseUrl;
-        private readonly bool _serveImagesViaController;
-        private readonly IHttpContextAccessor _httpContextAccessor;
-        private readonly IUserRepository _userRepository;
+        var usuario = await ObterUsuarioAutenticadoAsync();
+        if (usuario == null) return Enumerable.Empty<ImovelDto>();
 
-        public ImovelService(IImovelRepository imovelRepository, IImageStorage imageStorage, IConfiguration configuration, IHttpContextAccessor httpContextAccessor, IUserRepository userRepository)
+        var imoveis = await BuscarImoveisPorUsuarioAsync(usuario.Id);
+        return imoveis.Select(imovel => EnriquecerDto(imovel.ToDto()));
+    }
+
+    public async Task<ImovelDto?> GetByIdAsync(Guid id)
+    {
+        var imovel = await BuscarImovelPorIdAsync(id);
+        return imovel?.ToDto() is { } dto ? EnriquecerDto(dto) : null;
+    }
+
+    public async Task<ImovelDto?> GetByPublicIdAsync(string publicId)
+    {
+        var imovel = await BuscarImovelPorPublicIdAsync(publicId);
+        return imovel?.ToDto() is { } dto ? EnriquecerDto(dto) : null;
+    }
+
+    public async Task<ImovelDto> CreateAsync(CriarImovelDto dto)
+    {
+        var usuario = await ObterUsuarioAutenticadoAsync();
+        var imovel = CriarImovelAPartirDto(dto, usuario);
+        
+        await SalvarImovelAsync(imovel);
+        return EnriquecerDto(imovel.ToDto());
+    }
+
+    public async Task<ImovelDto> CreateWithUploadAsync(CriarImovelUploadDto dto)
+    {
+        var usuario = await ObterUsuarioAutenticadoAsync();
+        var imovel = await CriarImovelComImagensAsync(dto, usuario);
+        
+        await SalvarImovelAsync(imovel);
+        return EnriquecerDto(imovel.ToDto());
+    }
+
+    public async Task UpdateAsync(Guid id, AtualizarImovelDto dto)
+    {
+        var imovel = await BuscarImovelPorIdAsync(id);
+        if (imovel == null) throw new KeyNotFoundException("Imóvel não encontrado");
+        
+        AtualizarImovelComDto(imovel, dto);
+        await SalvarAlteracoesAsync();
+    }
+
+    public async Task DeleteAsync(Guid id)
+    {
+        var imovel = await BuscarImovelPorIdAsync(id);
+        if (imovel != null)
         {
-            _imovelRepository = imovelRepository;
-            _imageStorage = imageStorage;
-            _publicBaseUrl = configuration["PublicBaseUrl"]?.TrimEnd('/') ?? string.Empty;
-            _serveImagesViaController = bool.TryParse(configuration["ServeImagesViaController"], out var flag) && flag;
-            _httpContextAccessor = httpContextAccessor;
-            _userRepository = userRepository;
+            RemoverImovel(imovel);
+            await SalvarAlteracoesAsync();
         }
+    }
 
-        private async Task<User?> ObterUsuarioAsync()
+    private async Task<User?> ObterUsuarioAutenticadoAsync()
+    {
+        var email = ExtrairEmailDoContexto();
+        return email != null ? await BuscarUsuarioPorEmailAsync(email) : null;
+    }
+
+    private string? ExtrairEmailDoContexto()
+    {
+        var httpUser = httpContextAccessor.HttpContext?.User;
+        if (httpUser?.Identity?.IsAuthenticated != true) return null;
+        
+        var email = httpUser.FindFirstValue(ClaimTypes.Email) ?? httpUser.FindFirstValue("email");
+        return string.IsNullOrWhiteSpace(email) ? null : email.Trim().ToLowerInvariant();
+    }
+
+    private async Task<User?> BuscarUsuarioPorEmailAsync(string email) =>
+        await context.Users.FirstOrDefaultAsync(u => u.Email == email);
+
+    private async Task<List<Imovel>> BuscarImoveisPorUsuarioAsync(Guid userId) =>
+        await context.Imoveis
+            .Where(i => i.UserId == userId)
+            .ToListAsync();
+
+    private async Task<Imovel?> BuscarImovelPorIdAsync(Guid id) =>
+        await context.Imoveis.FirstOrDefaultAsync(i => i.Id == id);
+
+    private async Task<Imovel?> BuscarImovelPorPublicIdAsync(string publicId) =>
+        await context.Imoveis.FirstOrDefaultAsync(i => i.PublicId == publicId);
+
+    private static Imovel CriarImovelAPartirDto(CriarImovelDto dto, User? usuario)
+    {
+        var imovel = dto.ToEntity();
+        if (usuario != null)
         {
-            var httpUser = _httpContextAccessor.HttpContext?.User;
-            if (httpUser == null || !(httpUser.Identity?.IsAuthenticated ?? false)) return null;
-            var email = httpUser.FindFirstValue(ClaimTypes.Email) ?? httpUser.FindFirstValue("email");
-            if (string.IsNullOrWhiteSpace(email)) return null;
-            return await _userRepository.GetByEmailAsync(email.Trim().ToLowerInvariant());
+            imovel.DefinirUserId(usuario.Id);
+            imovel.DefinirCorretorTelefone(usuario.Telefone);
         }
+        return imovel;
+    }
 
-        private async Task<string> ObterTelefoneCorretorAsync()
+    private async Task<Imovel> CriarImovelComImagensAsync(CriarImovelUploadDto dto, User? usuario)
+    {
+        var builder = ConstruirImovelBuilder(dto, usuario?.Telefone ?? string.Empty);
+        await AdicionarImagensAoBuilderAsync(builder, dto.Imagens);
+        
+        var imovel = builder.Build();
+        if (usuario != null) imovel.DefinirUserId(usuario.Id);
+        
+        return imovel;
+    }
+
+    private static ImovelBuilder ConstruirImovelBuilder(CriarImovelUploadDto dto, string telefone) =>
+        ImovelBuilder.Novo()
+            .ComTitulo(dto.Titulo)
+            .ComEndereco(dto.Endereco)
+            .ComDescricao(dto.Descricao)
+            .ComStatus(dto.Status)
+            .ComPreco(dto.Preco)
+            .ComArea(dto.Area)
+            .ComQuartos(dto.Quartos)
+            .ComBanheiros(dto.Banheiros)
+            .ComSuites(dto.Suites)
+            .ComVagas(dto.Vagas)
+            .ComCorretorTelefone(telefone);
+
+    private async Task AdicionarImagensAoBuilderAsync(ImovelBuilder builder, List<IFormFile> imagens)
+    {
+        var extensoesPermitidas = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            { ".jpg", ".jpeg", ".png", ".gif", ".webp" };
+
+        foreach (var file in imagens.Where(f => f.Length > 0))
         {
-            var user = await ObterUsuarioAsync();
-            return user?.Telefone ?? string.Empty;
+            var extensao = ObterExtensaoValida(file.FileName, extensoesPermitidas);
+            if (extensao == null) continue;
+
+            var url = await FazerUploadImagemAsync(file, extensao);
+            builder.AdicionarImagem(url);
         }
+    }
 
-        private string ConverterUrlImagem(string original)
-        {
-            if (string.IsNullOrWhiteSpace(original)) return original;
-            if (string.IsNullOrEmpty(_publicBaseUrl)) return original;
-            if (_serveImagesViaController)
-            {
-                var fileName = original.TrimStart('/').Replace("imagens/", string.Empty, StringComparison.OrdinalIgnoreCase);
-                return _publicBaseUrl + "/api/imagens/" + fileName;
-            }
-            if (!original.StartsWith("http", StringComparison.OrdinalIgnoreCase))
-                return _publicBaseUrl + original;
-            return original;
-        }
+    private static string? ObterExtensaoValida(string fileName, HashSet<string> extensoesPermitidas)
+    {
+        var ext = Path.GetExtension(fileName);
+        if (string.IsNullOrWhiteSpace(ext)) ext = ".jpg";
+        return extensoesPermitidas.Contains(ext) ? ext : null;
+    }
 
-        private string BuildShareUrl(string publicId)
-        {
-            if (string.IsNullOrWhiteSpace(publicId)) return string.Empty;
-            if (string.IsNullOrEmpty(_publicBaseUrl)) return $"/api/imoveis/public/{publicId}";
-            return $"{_publicBaseUrl}/api/imoveis/public/{publicId}";
-        }
+    private async Task<string> FazerUploadImagemAsync(IFormFile file, string extensao)
+    {
+        using var stream = file.OpenReadStream();
+        return await imageStorage.SaveAsync(stream, extensao);
+    }
 
-        private void EnriquecerDto(ImovelDto dto)
-        {
-            foreach (var img in dto.Imagens)
-                img.Url = ConverterUrlImagem(img.Url);
-            dto.ShareUrl = BuildShareUrl(dto.PublicId);
-        }
+    private static void AtualizarImovelComDto(Imovel imovel, AtualizarImovelDto dto) =>
+        imovel.ApplyUpdate(dto);
 
-        private void EnriquecerDtos(IEnumerable<ImovelDto> dtos)
-        {
-            foreach (var d in dtos) EnriquecerDto(d);
-        }
+    private async Task SalvarImovelAsync(Imovel imovel)
+    {
+        context.Imoveis.Add(imovel);
+        await SalvarAlteracoesAsync();
+    }
 
-        public async Task<IEnumerable<ImovelDto>> GetAllAsync()
-        {
-            // Agora lista apenas imóveis do usuário autenticado
-            var usuario = await ObterUsuarioAsync();
-            if (usuario == null)
-            {
-                return Enumerable.Empty<ImovelDto>();
-            }
-            var imoveis = await _imovelRepository.GetAllByUserAsync(usuario.Id);
-            var lista = imoveis.ToDtoList();
-            EnriquecerDtos(lista);
-            return lista;
-        }
+    private void RemoverImovel(Imovel imovel) => context.Imoveis.Remove(imovel);
 
-        public async Task<ImovelDto?> GetByIdAsync(Guid id)
-        {
-            var imovel = await _imovelRepository.GetByIdAsync(id);
-            var dto = imovel?.ToDto();
-            if (dto != null) EnriquecerDto(dto);
-            return dto;
-        }
+    private async Task SalvarAlteracoesAsync() => await context.SaveChangesAsync();
 
-        public async Task<ImovelDto?> GetByPublicIdAsync(string publicId)
-        {
-            var imovel = await _imovelRepository.GetByPublicIdAsync(publicId);
-            var dto = imovel?.ToDto();
-            if (dto != null) EnriquecerDto(dto);
-            return dto;
-        }
+    private ImovelDto EnriquecerDto(ImovelDto dto) =>
+        dto with { ShareUrl = ConstruirShareUrl(dto.PublicId) };
 
-        public async Task<ImovelDto> CreateAsync(CreateImovelDto createImovelDto)
-        {
-            var usuario = await ObterUsuarioAsync();
-            var imovel = createImovelDto.ToEntity();
-            if (usuario != null)
-            {
-                imovel.DefinirOwner(usuario.Id);
-                imovel.DefinirCorretorTelefone(usuario.Telefone);
-            }
-            else
-            {
-                var tel = await ObterTelefoneCorretorAsync();
-                imovel.DefinirCorretorTelefone(tel);
-            }
-            var createdImovel = await _imovelRepository.AddAsync(imovel);
-            var dto = createdImovel.ToDto();
-            EnriquecerDto(dto);
-            return dto;
-        }
-
-        public async Task<ImovelDto> CreateWithUploadAsync(CreateImovelUploadDto createImovelUploadDto)
-        {
-            var usuario = await ObterUsuarioAsync();
-            var telefoneCorretor = usuario?.Telefone ?? string.Empty;
-            var builder = ImovelBuilder.Novo()
-                .ComTitulo(createImovelUploadDto.Titulo)
-                .ComEndereco(createImovelUploadDto.Endereco)
-                .ComDescricao(createImovelUploadDto.Descricao)
-                .ComStatus(createImovelUploadDto.Status)
-                .ComPreco(createImovelUploadDto.Preco)
-                .ComArea(createImovelUploadDto.Area)
-                .ComQuartos(createImovelUploadDto.Quartos)
-                .ComBanheiros(createImovelUploadDto.Banheiros)
-                .ComSuites(createImovelUploadDto.Suites)
-                .ComVagas(createImovelUploadDto.Vagas)
-                .ComCorretorTelefone(telefoneCorretor);
-
-            var allowed = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".jpg", ".jpeg", ".png", ".gif", ".webp" };
-            if (createImovelUploadDto.Imagens != null)
-            {
-                foreach (var file in createImovelUploadDto.Imagens)
-                {
-                    if (file is { Length: > 0 })
-                    {
-                        var ext = System.IO.Path.GetExtension(file.FileName);
-                        if (string.IsNullOrWhiteSpace(ext)) ext = ".jpg";
-                        if (!allowed.Contains(ext)) continue;
-                        using var stream = file.OpenReadStream();
-                        var url = await _imageStorage.SaveAsync(stream, ext);
-                        builder.AdicionarImagem(url);
-                    }
-                }
-            }
-
-            var imovel = builder.Build();
-            if (usuario != null)
-            {
-                imovel.DefinirOwner(usuario.Id);
-            }
-            var created = await _imovelRepository.AddAsync(imovel);
-            var dto = created.ToDto();
-            EnriquecerDto(dto);
-            return dto;
-        }
-
-        public async Task UpdateAsync(Guid id, UpdateImovelDto updateImovelDto)
-        {
-            var imovel = await _imovelRepository.GetByIdAsync(id);
-            if (imovel == null) throw new KeyNotFoundException("Imóvel não encontrado");
-            imovel.ApplyUpdate(updateImovelDto);
-            await _imovelRepository.UpdateAsync(imovel);
-        }
-
-        public async Task DeleteAsync(Guid id)
-        {
-            await _imovelRepository.DeleteAsync(id);
-        }
+    private string ConstruirShareUrl(string publicId)
+    {
+        if (string.IsNullOrWhiteSpace(publicId)) return string.Empty;
+        var baseUrl = string.IsNullOrEmpty(_publicBaseUrl) ? string.Empty : _publicBaseUrl;
+        return $"{baseUrl}/api/imoveis/public/{publicId}";
     }
 }

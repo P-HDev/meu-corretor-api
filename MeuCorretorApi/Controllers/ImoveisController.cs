@@ -1,120 +1,86 @@
 using Microsoft.AspNetCore.Mvc;
 using Service.Interfaces;
 using Service.Dtos;
-using System.Collections.Generic;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Authorization;
 
-namespace MeuCorretorApi.Controllers
+namespace MeuCorretorApi.Controllers;
+
+[ApiController]
+[Route("api/[controller]")]
+public class ImoveisController(IImovelService imovelService) : ControllerBase
 {
-    /// <summary>
-    /// Endpoints para gestão de imóveis e suas imagens.
-    /// </summary>
-    [ApiController]
-    [Route("api/[controller]")]
-    public class ImoveisController : ControllerBase
+    private readonly IImovelService _imovelService = imovelService ?? throw new ArgumentNullException(nameof(imovelService));
+
+    [HttpGet]
+    [Authorize]
+    [ProducesResponseType(typeof(IEnumerable<ImovelDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IEnumerable<ImovelDto>>> GetAll()
     {
-        private readonly IImovelService _imovelService;
+        var imoveis = await _imovelService.GetAllAsync();
+        return Ok(imoveis);
+    }
 
-        public ImoveisController(IImovelService imovelService)
-        {
-            _imovelService = imovelService;
-        }
+    [HttpGet("{id:guid}")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(ImovelDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ImovelDto>> GetById(Guid id)
+    {
+        var imovel = await _imovelService.GetByIdAsync(id);
+        if (imovel == null)
+            return NotFound();
+        return Ok(imovel);
+    }
 
-        /// <summary>
-        /// Lista todos os imóveis (apenas autenticado).
-        /// </summary>
-        [HttpGet]
-        [Authorize]
-        [ProducesResponseType(typeof(IEnumerable<ImovelDto>), StatusCodes.Status200OK)]
-        public async Task<ActionResult<IEnumerable<ImovelDto>>> GetAll()
-        {
-            var imoveis = await _imovelService.GetAllAsync();
-            return Ok(imoveis);
-        }
+    [HttpGet("public/{publicId}")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(ImovelDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ImovelDto>> GetByPublicId(string publicId)
+    {
+        var imovel = await _imovelService.GetByPublicIdAsync(publicId);
+        if (imovel == null)
+            return NotFound();
+        return Ok(imovel);
+    }
 
-        /// <summary>
-        /// Obtém um imóvel pelo identificador interno (agora público/anonimo).
-        /// </summary>
-        [HttpGet("{id:guid}")]
-        [AllowAnonymous]
-        [ProducesResponseType(typeof(ImovelDto), StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public async Task<ActionResult<ImovelDto>> GetById(Guid id)
-        {
-            var imovel = await _imovelService.GetByIdAsync(id);
-            if (imovel == null)
-                return NotFound();
-            return Ok(imovel);
-        }
+    [HttpPost]
+    [Authorize]
+    [ProducesResponseType(typeof(ImovelDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<ImovelDto>> Create([FromBody] CriarImovelDto criarImovelDto)
+    {
+        var created = await _imovelService.CreateAsync(criarImovelDto);
+        return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
+    }
 
-        /// <summary>
-        /// Obtém imóvel público via PublicId (anônimo permitido).
-        /// </summary>
-        [HttpGet("public/{publicId}")]
-        [AllowAnonymous]
-        [ProducesResponseType(typeof(ImovelDto), StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public async Task<ActionResult<ImovelDto>> GetByPublicId(string publicId)
-        {
-            var imovel = await _imovelService.GetByPublicIdAsync(publicId);
-            if (imovel == null)
-                return NotFound();
-            return Ok(imovel);
-        }
+    [HttpPost("upload")]
+    [Authorize]
+    [Consumes("multipart/form-data")]
+    [ProducesResponseType(typeof(ImovelDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<ImovelDto>> CreateWithUpload([FromForm] CriarImovelUploadDto form)
+    {
+        if (!ModelState.IsValid)
+            return ValidationProblem(ModelState);
 
-        /// <summary>
-        /// Cria um novo imóvel informando URLs de imagens já hospedadas.
-        /// </summary>
-        [HttpPost]
-        [Authorize]
-        [ProducesResponseType(typeof(ImovelDto), StatusCodes.Status201Created)]
-        [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        public async Task<ActionResult<ImovelDto>> Create([FromBody] CreateImovelDto createImovelDto)
-        {
-            var created = await _imovelService.CreateAsync(createImovelDto);
-            return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
-        }
+        var created = await _imovelService.CreateWithUploadAsync(form);
+        return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
+    }
 
-        /// <summary>
-        /// Cria um novo imóvel enviando arquivos de imagem (upload multipart/form-data).
-        /// </summary>
-        [HttpPost("upload")]
-        [Authorize]
-        [Consumes("multipart/form-data")]
-        [ProducesResponseType(typeof(ImovelDto), StatusCodes.Status201Created)]
-        [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        public async Task<ActionResult<ImovelDto>> CreateWithUpload([FromForm] CreateImovelUploadDto form)
-        {
-            if (!ModelState.IsValid)
-                return ValidationProblem(ModelState);
+    [HttpPut("{id:guid}")]
+    [Authorize]
+    public async Task<IActionResult> Update(Guid id, [FromBody] AtualizarImovelDto dto)
+    {
+        await _imovelService.UpdateAsync(id, dto);
+        return NoContent();
+    }
 
-            var created = await _imovelService.CreateWithUploadAsync(form);
-            return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
-        }
-
-        /// <summary>
-        /// Atualiza um imóvel existente substituindo seus dados e URLs das imagens.
-        /// </summary>
-        [HttpPut("{id:guid}")]
-        [Authorize]
-        public async Task<IActionResult> Update(Guid id, [FromBody] UpdateImovelDto dto)
-        {
-            await _imovelService.UpdateAsync(id, dto);
-            return NoContent();
-        }
-
-        /// <summary>
-        /// Remove um imóvel.
-        /// </summary>
-        [HttpDelete("{id:guid}")]
-        [Authorize]
-        public async Task<IActionResult> Delete(Guid id)
-        {
-
-            await _imovelService.DeleteAsync(id);
-            return NoContent();
-        }
+    [HttpDelete("{id:guid}")]
+    [Authorize]
+    public async Task<IActionResult> Delete(Guid id)
+    {
+        await _imovelService.DeleteAsync(id);
+        return NoContent();
     }
 }
