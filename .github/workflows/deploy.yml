@@ -35,34 +35,48 @@ jobs:
       - name: Publish
         run: dotnet publish MeuCorretorApi/MeuCorretorApi.csproj -c Release -o publish --no-build
 
-      # Login opcional via Service Principal (JSON) se secret AZURE_CREDENTIALS existir
-      - name: Azure Login (opcional)
-        if: ${{ secrets.AZURE_CREDENTIALS != '' }}
+      - name: Validar e classificar secrets
+        id: validate-secrets
+        run: |
+          hasPublishProfile="false"
+          hasSp="false"
+          if [ -n "${AZURE_WEBAPP_PUBLISH_PROFILE}" ]; then
+            hasPublishProfile="true"
+          fi
+          if [ -n "${AZURE_CREDENTIALS}" ]; then
+            hasSp="true"
+          fi
+          if [ -z "${AZURE_WEBAPP_NAME}" ]; then
+            echo 'ERRO: Secret AZURE_WEBAPP_NAME não configurado.'
+            exit 1
+          fi
+          if [ "$hasPublishProfile" = "false" ] && [ "$hasSp" = "false" ]; then
+            echo 'ERRO: Configure pelo menos AZURE_WEBAPP_PUBLISH_PROFILE ou AZURE_CREDENTIALS.'
+            exit 1
+          fi
+          echo "hasPublishProfile=$hasPublishProfile" >> $GITHUB_OUTPUT
+          echo "hasServicePrincipal=$hasSp" >> $GITHUB_OUTPUT
+        env:
+          AZURE_WEBAPP_PUBLISH_PROFILE: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
+          AZURE_WEBAPP_NAME: ${{ secrets.AZURE_WEBAPP_NAME }}
+
+      - name: Azure Login (Service Principal)
+        if: steps.validate-secrets.outputs.hasServicePrincipal == 'true' && steps.validate-secrets.outputs.hasPublishProfile == 'false'
         uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Validar secret Publish Profile
-        run: |
-          if [ -z "${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}" ]; then
-            echo 'ERRO: Secret AZURE_WEBAPP_PUBLISH_PROFILE não configurado. Adicione o conteúdo XML completo do Publish Profile às secrets.'
-            exit 1
-          fi
-          if [ -z "${{ secrets.AZURE_WEBAPP_NAME }}" ]; then
-            echo 'ERRO: Secret AZURE_WEBAPP_NAME não configurado.'
-            exit 1
-          fi
-
-      - name: Deploy to Azure WebApp (Publish Profile)
-        if: ${{ success() && secrets.AZURE_WEBAPP_PUBLISH_PROFILE != '' }}
+      - name: Deploy via Publish Profile
+        if: steps.validate-secrets.outputs.hasPublishProfile == 'true'
         uses: azure/webapps-deploy@v3
         with:
           app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
           publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
           package: publish
 
-      - name: Deploy to Azure WebApp (Credenciais SP) - Fallback
-        if: ${{ success() && secrets.AZURE_WEBAPP_PUBLISH_PROFILE == '' && secrets.AZURE_CREDENTIALS != '' }}
+      - name: Deploy via Service Principal (fallback)
+        if: steps.validate-secrets.outputs.hasPublishProfile == 'false' && steps.validate-secrets.outputs.hasServicePrincipal == 'true'
         uses: azure/webapps-deploy@v3
         with:
           app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
