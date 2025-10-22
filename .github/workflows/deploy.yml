@@ -35,16 +35,40 @@ jobs:
       - name: Publish
         run: dotnet publish MeuCorretorApi/MeuCorretorApi.csproj -c Release -o publish --no-build
 
-      - name: Deploy to Azure WebApp
-        if: ${{ success() }}
+      # Login opcional via Service Principal (JSON) se secret AZURE_CREDENTIALS existir
+      - name: Azure Login (opcional)
+        if: ${{ secrets.AZURE_CREDENTIALS != '' }}
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Validar secret Publish Profile
+        run: |
+          if [ -z "${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}" ]; then
+            echo 'ERRO: Secret AZURE_WEBAPP_PUBLISH_PROFILE não configurado. Adicione o conteúdo XML completo do Publish Profile às secrets.'
+            exit 1
+          fi
+          if [ -z "${{ secrets.AZURE_WEBAPP_NAME }}" ]; then
+            echo 'ERRO: Secret AZURE_WEBAPP_NAME não configurado.'
+            exit 1
+          fi
+
+      - name: Deploy to Azure WebApp (Publish Profile)
+        if: ${{ success() && secrets.AZURE_WEBAPP_PUBLISH_PROFILE != '' }}
         uses: azure/webapps-deploy@v3
         with:
           app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
           publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
           package: publish
 
-      - name: Post Subscription Disabled Warning
-        if: failure() && contains(needs.build-and-deploy.steps.*.outcome, 'failure')
-        run: |
-          echo 'Verifique se a assinatura Azure está habilitada. Erro 409 indica assinatura desabilitada.'
+      - name: Deploy to Azure WebApp (Credenciais SP) - Fallback
+        if: ${{ success() && secrets.AZURE_WEBAPP_PUBLISH_PROFILE == '' && secrets.AZURE_CREDENTIALS != '' }}
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
+          package: publish
 
+      - name: Post Subscription Disabled Warning
+        if: failure()
+        run: |
+          echo 'Falha no deploy. Se código 409: assinatura Azure desabilitada ou sem permissão. Verifique billing e SP.'
