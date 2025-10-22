@@ -49,16 +49,6 @@ public class Imovel
         _imagensUrls.Add(url);
     }
 
-    public void RemoverImagemUrl(string url)
-    {
-        _imagensUrls.Remove(url);
-    }
-
-    public void LimparImagens()
-    {
-        _imagensUrls.Clear();
-    }
-
     public void DefinirImagens(IEnumerable<string> urls)
     {
         _imagensUrls.Clear();

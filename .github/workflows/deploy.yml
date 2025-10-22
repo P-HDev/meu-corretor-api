@@ -1,0 +1,50 @@
+name: Build and Deploy API
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [master]
+  workflow_dispatch:
+
+# Evita execuções duplicadas simultâneas na mesma ref
+concurrency:
+  group: corretorapi-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    if: github.event_name == 'workflow_dispatch' || (github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'master' && github.event.pull_request.head.ref == 'develop')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Restore
+        run: dotnet restore MeuCorretorApi.sln
+
+      - name: Build
+        run: dotnet build MeuCorretorApi.sln --configuration Release --no-restore
+
+      - name: Publish
+        run: dotnet publish MeuCorretorApi/MeuCorretorApi.csproj -c Release -o publish --no-build
+
+      - name: Deploy to Azure WebApp
+        if: ${{ success() }}
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          package: publish
+
+      - name: Post Subscription Disabled Warning
+        if: failure() && contains(needs.build-and-deploy.steps.*.outcome, 'failure')
+        run: |
+          echo 'Verifique se a assinatura Azure está habilitada. Erro 409 indica assinatura desabilitada.'
+
