@@ -15,6 +15,11 @@ builder.Services
 
 builder.Services.AddControllers();
 
+builder.Services.AddHttpsRedirection(options =>
+{
+    options.HttpsPort = 443;
+});
+
 var app = builder.Build();
 
 app.UseForwardedHeaders();
@@ -50,6 +55,11 @@ if (enableSwagger)
     });
 }
 
-app.UseHttpsRedirection();
+var httpsPortEnv = Environment.GetEnvironmentVariable("ASPNETCORE_HTTPS_PORT");
+if (app.Environment.IsDevelopment() || !string.IsNullOrWhiteSpace(httpsPortEnv))
+{
+    app.UseHttpsRedirection();
+}
+
 app.MapControllers();
 app.Run();
