@@ -1,0 +1,9 @@
+<Project>
+  <PropertyGroup>
+    <!-- Permite compilar com SDKs/Hosts que ainda não tenham todos os metadados de prune para previews/novas versões -->
+    <AllowMissingPrunePackageData>true</AllowMissingPrunePackageData>
+    <!-- Forçar neutralidade de versão de linguagem se necessário -->
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+</Project>
+

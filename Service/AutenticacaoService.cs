@@ -39,6 +39,20 @@ public class AutenticacaoService(ContextoDb context, IConfiguration configuratio
         return CriarRespostaAutenticacao(token, usuario);
     }
 
+    public async Task ResetarSenhaAsync(string email)
+    {
+        if (string.IsNullOrWhiteSpace(email))
+            throw new ArgumentException("Email inválido", nameof(email));
+
+        var usuario = await BuscarUsuarioPorEmailAsync(email);
+        if (usuario == null)
+            throw new InvalidOperationException("Usuário não encontrado");
+
+        usuario.SetPasswordHash(CriptografarSenha("SenhaTeste123"));
+        context.Users.Update(usuario);
+        await context.SaveChangesAsync();
+    }
+
     private async Task<User?> BuscarUsuarioPorEmailAsync(string email) =>
         await context.Users.FirstOrDefaultAsync(u => u.Email == email.ToLowerInvariant());
 
