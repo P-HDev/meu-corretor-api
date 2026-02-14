@@ -41,4 +41,26 @@ public class AutenticacaoController(IAutenticacaoService autenticacaoService) : 
             return Unauthorized(new { error = "Credenciais inválidas" });
         }
     }
+
+    [HttpPost("reset-senha")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ResetSenha([FromBody] ResetSenhaDto dto)
+    {
+        if (!ModelState.IsValid) return ValidationProblem(ModelState);
+        try
+        {
+            await autenticacaoService.ResetarSenhaAsync(dto.Email);
+            return NoContent();
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("não encontrado"))
+        {
+            return NotFound(new { error = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
 }
